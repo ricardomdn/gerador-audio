@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Voz WEBDARK (Modo Diagnóstico)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .api-status {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .status-unknown { background-color: #6b7280; }
+        .status-ok { background-color: #22c55e; }
+        .status-error { background-color: #ef4444; }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ef4444;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #dc2626;
+        }
+        .tab-panel.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-black text-gray-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl bg-gray-900 rounded-2xl shadow-2xl shadow-red-900/40 p-8 border border-red-900/50">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-red-600 tracking-wider">Gerador de Voz WEBDARK</h1>
+            <p class="text-gray-400 mt-2">Converta seus roteiros em áudio de alta qualidade com estilo personalizado.</p>
+        </header>
+
+        <main class="space-y-6">
+
+            <!-- Seção de API Keys -->
+            <section class="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                <h2 class="text-xl font-semibold mb-3 text-red-500">1. Chaves de API Gemini</h2>
+                <label for="apiKeyFile" class="w-full cursor-pointer bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md inline-block text-center transition-colors">
+                    Carregar Chaves de API (arquivo .txt)
+                </label>
+                <input type="file" id="apiKeyFile" class="hidden" accept=".txt">
+                <div id="apiKeyList" class="mt-4 space-y-2 max-h-32 overflow-y-auto pr-2">
+                    <p class="text-gray-500">Nenhuma chave de API carregada.</p>
+                </div>
+            </section>
+            
+            <!-- Navegação das Abas -->
+            <div class="border-b border-gray-700">
+                <nav class="-mb-px flex space-x-6" id="tab-nav" aria-label="Tabs">
+                    <button data-tab="config" class="tab-btn shrink-0 border-b-2 font-medium text-sm px-1 py-4 border-red-600 text-red-500">
+                        Configuração da Geração
+                    </button>
+                    <button data-tab="style" class="tab-btn shrink-0 border-b-2 font-medium text-sm px-1 py-4 border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500">
+                        Instruções de Estilo
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Conteúdo das Abas -->
+            <div id="tab-content">
+                <!-- Painel de Configuração -->
+                <div id="tab-panel-config" class="tab-panel space-y-6">
+                    <!-- Seção de Voz e Arquivos -->
+                    <section class="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                        <h2 class="text-xl font-semibold mb-3 text-red-500">2. Voz e Roteiros</h2>
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="voiceSelector" class="block mb-2 text-sm font-medium text-gray-300">Selecione a Voz</label>
+                                <div class="flex items-center gap-2">
+                                    <select id="voiceSelector" class="flex-grow w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-red-500 focus:border-red-500 p-2.5"></select>
+                                    <button id="favoriteVoiceButton" title="Adicionar aos Favoritos" class="flex-shrink-0 bg-gray-600 hover:bg-gray-700 text-white font-bold p-2.5 rounded-md transition-colors"></button>
+                                    <button id="previewVoiceButton" title="Ouvir Prévia da Voz" class="flex-shrink-0 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:cursor-wait text-white font-bold p-2.5 rounded-md transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                          <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block mb-2 text-sm font-medium text-gray-300">Selecione os Roteiros</label>
+                                 <label for="textFiles" class="w-full cursor-pointer bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md inline-block text-center transition-colors">
+                                    Carregar Roteiros (.txt, .docx)
+                                </label>
+                                <input type="file" id="textFiles" class="hidden" accept=".txt,.docx,.doc" multiple>
+                            </div>
+                        </div>
+                         <div id="fileList" class="mt-4 text-sm text-gray-400">
+                            <p>Nenhum arquivo selecionado.</p>
+                        </div>
+                    </section>
+        
+                    <!-- Seção de Controle e Progresso -->
+                    <section class="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                         <h2 class="text-xl font-semibold mb-3 text-red-500">3. Iniciar Processo</h2>
+                        <div class="flex flex-col md:flex-row gap-4 items-center">
+                            <button id="startButton" class="w-full md:w-auto bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-md transition-colors flex-grow">Iniciar Geração</button>
+                            <button id="cancelButton" class="w-full md:w-auto bg-red-800 hover:bg-red-900 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-md transition-colors flex-grow">Cancelar</button>
+                        </div>
+                        <div class="mt-4">
+                            <div id="progressBarContainer" class="w-full bg-gray-700 rounded-full h-4">
+                                <div id="progressBar" class="bg-red-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                            <p id="statusMessage" class="text-center text-sm text-gray-400 mt-2 h-5">Aguardando início...</p>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Painel de Estilo de Narração -->
+                <div id="tab-panel-style" class="tab-panel hidden">
+                    <section class="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                        <h2 class="text-xl font-semibold text-red-500">Instruções de Estilo da Narração</h2>
+                        <p class="text-gray-400 mt-2 mb-4 text-sm">
+                            Forneça uma instrução para guiar a narração. Isso será aplicado a todos os roteiros. <br>
+                            Exemplos: "com um tom alegre", "sussurrando", "de forma séria e profunda", "como um robô", "com um sotaque específico".
+                        </p>
+                        <textarea id="narrationStyle" 
+                            class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-red-500 focus:border-red-500 p-2.5" 
+                            rows="4" 
+                            placeholder="Ex: com um tom alegre e amigável..."></textarea>
+                    </section>
+                </div>
+            </div>
+            
+            <!-- Seção de Saída -->
+            <section id="outputSection" class="hidden bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                 <h2 class="text-xl font-semibold mb-3 text-red-500">Downloads</h2>
+                 <div id="outputLinks" class="space-y-3">
+                     <!-- Links de download aparecerão aqui -->
+                 </div>
+                 <button id="downloadAllButton" class="hidden w-full mt-4 bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Baixar Todos (.zip)</button>
+            </section>
+
+        </main>
+    </div>
+
+    <script type="module">
+        // --- Referências do DOM ---
+        const apiKeyFileInput = document.getElementById('apiKeyFile');
+        const apiKeyListDiv = document.getElementById('apiKeyList');
+        const textFilesInput = document.getElementById('textFiles');
+        const fileListDiv = document.getElementById('fileList');
+        const voiceSelector = document.getElementById('voiceSelector');
+        const favoriteVoiceButton = document.getElementById('favoriteVoiceButton');
+        const previewVoiceButton = document.getElementById('previewVoiceButton');
+        const startButton = document.getElementById('startButton');
+        const cancelButton = document.getElementById('cancelButton');
+        const progressBar = document.getElementById('progressBar');
+        const statusMessage = document.getElementById('statusMessage');
+        const outputSection = document.getElementById('outputSection');
+        const outputLinksDiv = document.getElementById('outputLinks');
+        const downloadAllButton = document.getElementById('downloadAllButton');
+        const narrationStyleTextarea = document.getElementById('narrationStyle');
+        const tabNav = document.getElementById('tab-nav');
+        const tabPanels = document.querySelectorAll('.tab-panel');
+
+        // --- Estado da Aplicação ---
+        let apiKeys = [];
+        let textFiles = [];
+        let isProcessing = false;
+        let forceCancel = false;
+        let sharedApiKeyCounter = 0;
+        let favoriteVoices = [];
+        let generatedFiles = [];
+        
+        const ALL_VOICES = ["Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"];
+        
+        const SVG_STAR_OUTLINE = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-star" viewBox="0 0 16 16"><path d="M2.866 14.85c-.078.444.36.791.746.593l4.39-2.256 4.389 2.256c.386.198.824-.149.746-.592l-.83-4.73 3.522-3.356c.33-.314.16-.888-.282-.95l-4.898-.696L8.465.792a.513.513 0 0 0-.927 0L5.354 5.12l-4.898.696c-.441.062-.612.636-.283.95l3.523 3.356-.83 4.73zm4.905-2.767-3.686 1.894.694-3.957a.565.565 0 0 0-.163-.505L1.71 6.745l4.052-.576a.525.525 0 0 0 .393-.288L8 2.223l1.847 3.658a.525.525 0 0 0 .393.288l4.052.575-2.906 2.77a.565.565 0 0 0-.163.506l.694 3.957-3.686-1.894a.503.503 0 0 0-.461 0z"/></svg>`;
+        const SVG_STAR_FILLED = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-star-fill text-yellow-400" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/></svg>`;
+        
+
+        // --- Event Listeners ---
+        apiKeyFileInput.addEventListener('change', handleApiKeyFile);
+        apiKeyListDiv.addEventListener('click', handleDeleteApiKey);
+        textFilesInput.addEventListener('change', handleTextFiles);
+        favoriteVoiceButton.addEventListener('click', toggleFavoriteVoice);
+        voiceSelector.addEventListener('change', updateFavoriteButtonVisual);
+        previewVoiceButton.addEventListener('click', previewVoice);
+        startButton.addEventListener('click', startProcess);
+        cancelButton.addEventListener('click', cancelProcess);
+        downloadAllButton.addEventListener('click', downloadAllFilesAsZip);
+        tabNav.addEventListener('click', handleTabClick);
+
+        // --- Funções de Inicialização ---
+        function initialize() {
+            loadFavorites();
+            renderVoices();
+            updateFavoriteButtonVisual();
+        }
+
+        // --- Funções das Abas ---
+        function handleTabClick(e) {
+            if (e.target.tagName !== 'BUTTON') return;
+
+            const tabId = e.target.dataset.tab;
+
+            // Atualiza estilo dos botões
+            tabNav.querySelectorAll('button').forEach(btn => {
+                btn.classList.remove('border-red-600', 'text-red-500');
+                btn.classList.add('border-transparent', 'text-gray-400', 'hover:text-gray-200', 'hover:border-gray-500');
+            });
+            e.target.classList.add('border-red-600', 'text-red-500');
+            e.target.classList.remove('border-transparent', 'text-gray-400');
+
+            // Atualiza visibilidade dos painéis
+            tabPanels.forEach(panel => {
+                panel.id === `tab-panel-${tabId}` ? panel.classList.remove('hidden') : panel.classList.add('hidden');
+            });
+        }
+        
+        // --- Funções de Favoritos ---
+        function loadFavorites() {
+            const stored = localStorage.getItem('webdark_favorite_voices');
+            favoriteVoices = stored ? JSON.parse(stored) : [];
+        }
+
+        function saveFavorites() {
+            localStorage.setItem('webdark_favorite_voices', JSON.stringify(favoriteVoices));
+        }
+
+        function renderVoices() {
+            const currentSelection = voiceSelector.value;
+            voiceSelector.innerHTML = ''; 
+
+            const sortedVoices = [...ALL_VOICES].sort((a, b) => {
+                const aIsFav = favoriteVoices.includes(a);
+                const bIsFav = favoriteVoices.includes(b);
+                if (aIsFav === bIsFav) return a.localeCompare(b);
+                return aIsFav ? -1 : 1;
+            });
+
+            sortedVoices.forEach(voiceName => {
+                const option = document.createElement('option');
+                option.value = voiceName;
+                const isFav = favoriteVoices.includes(voiceName);
+                option.textContent = isFav ? `⭐ ${voiceName}` : voiceName;
+                voiceSelector.appendChild(option);
+            });
+            
+            if (currentSelection) {
+                voiceSelector.value = currentSelection;
+            }
+        }
+
+        function toggleFavoriteVoice() {
+            const selectedVoice = voiceSelector.value;
+            const index = favoriteVoices.indexOf(selectedVoice);
+            if (index > -1) {
+                favoriteVoices.splice(index, 1);
+            } else {
+                favoriteVoices.push(selectedVoice);
+            }
+            saveFavorites();
+            renderVoices();
+            updateFavoriteButtonVisual();
+        }
+
+        function updateFavoriteButtonVisual() {
+            const selectedVoice = voiceSelector.value;
+            const isFavorite = favoriteVoices.includes(selectedVoice);
+            favoriteVoiceButton.innerHTML = isFavorite ? SVG_STAR_FILLED : SVG_STAR_OUTLINE;
+            favoriteVoiceButton.title = isFavorite ? 'Remover dos Favoritos' : 'Adicionar aos Favoritos';
+        }
+
+
+        // --- Funções de Manipulação de UI ---
+        
+        function handleApiKeyFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                apiKeys = content.split(/\r?\n/)
+                                 .map(key => key.trim())
+                                 .filter(key => key.length > 10)
+                                 .map(key => ({ key, status: 'unknown' }));
+                renderApiKeyList();
+                if (apiKeys.length === 0) {
+                    updateStatus("Arquivo de chaves vazio ou inválido.", true);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function renderApiKeyList() {
+            apiKeyListDiv.innerHTML = '';
+            if (apiKeys.length === 0) {
+                apiKeyListDiv.innerHTML = '<p class="text-gray-500">Nenhuma chave de API carregada.</p>';
+                return;
+            }
+            apiKeys.forEach((apiKey, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-2 rounded-md flex items-center';
+                div.innerHTML = `
+                    <span id="api-status-${index}" class="api-status status-${apiKey.status}"></span>
+                    <span class="font-mono text-gray-300 flex-grow">******************************${apiKey.key.slice(-4)}</span>
+                    <button data-index="${index}" class="delete-key-btn ml-4 text-gray-400 hover:text-red-500 text-2xl leading-none font-bold transition-colors">&times;</button>
+                `;
+                apiKeyListDiv.appendChild(div);
+            });
+        }
+        
+        function handleDeleteApiKey(event) {
+            if (event.target.classList.contains('delete-key-btn')) {
+                const index = parseInt(event.target.dataset.index, 10);
+                if (!isNaN(index) && index < apiKeys.length) {
+                    apiKeys.splice(index, 1);
+                    renderApiKeyList();
+                }
+            }
+        }
+
+        function updateApiKeyStatus(index, status) {
+            if (apiKeys[index]) {
+                apiKeys[index].status = status;
+                const statusIndicator = document.getElementById(`api-status-${index}`);
+                if (statusIndicator) {
+                    statusIndicator.className = `api-status status-${status}`;
+                }
+            }
+        }
+
+        function handleTextFiles(event) {
+            textFiles = Array.from(event.target.files);
+            fileListDiv.innerHTML = '';
+             if (textFiles.length === 0) {
+                fileListDiv.innerHTML = '<p>Nenhum arquivo selecionado.</p>';
+                return;
+            }
+            const list = document.createElement('ul');
+            list.className = 'list-disc list-inside';
+            textFiles.forEach(file => {
+                const li = document.createElement('li');
+                li.textContent = file.name;
+                list.appendChild(li);
+            });
+            fileListDiv.appendChild(list);
+        }
+
+        function updateStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.classList.toggle('text-red-500', isError);
+            statusMessage.classList.toggle('text-gray-400', !isError);
+        }
+        
+        let completedChunksForProgress = 0;
+        function updateProgress(totalChunks, fileName) {
+            completedChunksForProgress++;
+            const percentage = (completedChunksForProgress / totalChunks) * 100;
+            progressBar.style.width = `${percentage}%`;
+            updateStatus(`Gerando: ${fileName} [${completedChunksForProgress}/${totalChunks}]`);
+        }
+
+        function toggleControls(enable) {
+            startButton.disabled = !enable;
+            cancelButton.disabled = enable;
+            apiKeyFileInput.disabled = !enable;
+            textFilesInput.disabled = !enable;
+            voiceSelector.disabled = !enable;
+            previewVoiceButton.disabled = !enable;
+            favoriteVoiceButton.disabled = !enable;
+            narrationStyleTextarea.disabled = !enable;
+        }
+
+        // --- Funções Principais do Processo ---
+
+        async function previewVoice() {
+             if (apiKeys.length === 0) {
+                updateStatus("Carregue uma chave de API para ouvir a prévia.", true);
+                return;
+            }
+
+            const firstValidKey = apiKeys.find(k => k.status !== 'error');
+            if (!firstValidKey) {
+                updateStatus("Nenhuma chave de API válida disponível para a prévia.", true);
+                return;
+            }
+            
+            const originalButtonContent = previewVoiceButton.innerHTML;
+            previewVoiceButton.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+            previewVoiceButton.disabled = true;
+            updateStatus("Gerando prévia da voz...");
+
+            try {
+                const sampleText = "Esta é uma demonstração da voz selecionada para o seu projeto.";
+                const audioData = await generateAudioForChunk(sampleText, apiKeys.indexOf(firstValidKey));
+                
+                const pcm16 = new Int16Array(base64ToArrayBuffer(audioData));
+                const audioBlob = createWavBlob([pcm16], 24000);
+                const audio = new Audio(URL.createObjectURL(audioBlob));
+                audio.play();
+                updateStatus("Prévia reproduzida com sucesso.");
+
+            } catch (error) {
+                console.error("Erro na prévia:", error);
+                updateStatus(`Erro na prévia: ${error.message}`, true);
+            } finally {
+                previewVoiceButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>`;
+                previewVoiceButton.disabled = false;
+            }
+        }
+
+
+        function cancelProcess() {
+            if (isProcessing) {
+                forceCancel = true;
+                updateStatus("Cancelando processo...", true);
+            }
+        }
+
+        async function startProcess() {
+            if (apiKeys.length === 0) {
+                updateStatus("Por favor, carregue pelo menos uma chave de API.", true);
+                return;
+            }
+            if (textFiles.length === 0) {
+                updateStatus("Por favor, selecione pelo menos um arquivo de roteiro.", true);
+                return;
+            }
+
+            isProcessing = true;
+            forceCancel = false;
+            sharedApiKeyCounter = 0;
+            generatedFiles = [];
+            toggleControls(false);
+            outputLinksDiv.innerHTML = '';
+            outputSection.classList.add('hidden');
+            downloadAllButton.classList.add('hidden');
+            
+            apiKeys.forEach((_, index) => updateApiKeyStatus(index, 'unknown'));
+
+            for (let i = 0; i < textFiles.length; i++) {
+                if (forceCancel) break;
+                
+                const file = textFiles[i];
+                
+                // ALTERAÇÃO: Usa o nome do arquivo original para o nome do áudio de saída.
+                const originalFileName = file.name;
+                const lastDotIndex = originalFileName.lastIndexOf('.');
+                const baseName = lastDotIndex > -1 ? originalFileName.substring(0, lastDotIndex) : originalFileName;
+                const outputFileName = `${baseName}.wav`;
+                
+                completedChunksForProgress = 0;
+                progressBar.style.width = '0%';
+
+                updateStatus(`Processando arquivo ${i + 1}/${textFiles.length}: ${file.name}`);
+                
+                try {
+                    const audioBlob = await processSingleFile(file);
+                    if (audioBlob) {
+                        createDownloadLink(audioBlob, outputFileName);
+                    }
+                } catch (error) {
+                    updateStatus(`Erro fatal no arquivo ${file.name}: ${error.message}`, true);
+                    break;
+                }
+            }
+
+            if (forceCancel) {
+                updateStatus("Processo cancelado pelo usuário.", true);
+            } else if (statusMessage.classList.contains('text-red-500')) {
+                // Não sobrescreve a mensagem de erro final
+            }
+            else {
+                 updateStatus("Processo concluído!");
+            }
+            isProcessing = false;
+            toggleControls(true);
+        }
+
+        async function processSingleFile(file) {
+            let textContent = '';
+            try {
+                if (file.name.endsWith('.docx')) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const result = await mammoth.extractRawText({ arrayBuffer });
+                    textContent = result.value;
+                } else {
+                    textContent = await file.text();
+                }
+            } catch (e) {
+                throw new Error("Falha ao ler o arquivo.");
+            }
+            
+            const chunks = chunkText(textContent, 800);
+            updateStatus(`Arquivo '${file.name}' dividido em ${chunks.length} blocos. Iniciando geração...`);
+            
+            const chunkPromises = chunks.map((chunk, i) => 
+                processChunkWithRetries(chunk, i, chunks.length, file.name)
+            );
+
+            const audioParts = await Promise.all(chunkPromises);
+
+            if (forceCancel) return null;
+            
+            const validAudioParts = audioParts.filter(p => p); 
+            if (validAudioParts.length > 0) {
+                 updateStatus(`Juntando áudios para ${file.name}...`);
+                 const finalWavBlob = createWavBlob(validAudioParts, 24000);
+                 return finalWavBlob;
+            }
+
+            return null;
+        }
+        
+        // --- MODIFICADO: Esta função agora exibe o erro detalhado da API ---
+        async function processChunkWithRetries(chunk, chunkIndex, totalChunks, fileName) {
+            if (forceCancel) return null;
+
+            const startOffset = sharedApiKeyCounter % apiKeys.length;
+            sharedApiKeyCounter++;
+
+            for (let i = 0; i < apiKeys.length; i++) {
+                if (forceCancel) return null;
+
+                const keyIndex = (startOffset + i) % apiKeys.length;
+
+                if (apiKeys[keyIndex].status === 'error') {
+                    continue; // Pula chaves que já falharam
+                }
+
+                try {
+                    const audioData = await generateAudioForChunk(chunk, keyIndex);
+                    const pcm16 = new Int16Array(base64ToArrayBuffer(audioData));
+                    updateProgress(totalChunks, fileName);
+                    return pcm16; 
+                } catch (error) {
+                    console.error(`Falha na API Key ${keyIndex}:`, error.message);
+                    updateApiKeyStatus(keyIndex, 'error');
+                    // Mostra o erro específico na tela
+                    updateStatus(`Chave #${keyIndex + 1} falhou: ${error.message}. Tentando próxima...`, true);
+                }
+            }
+
+            forceCancel = true; // Para o processo se todas as chaves falharem
+            throw new Error(`Não foi possível gerar áudio para o bloco #${chunkIndex + 1}. Todas as chaves de API falharam.`);
+        }
+
+        // --- MODIFICADO: Esta função extrai a mensagem de erro da API de forma mais clara ---
+        async function generateAudioForChunk(textChunk, keyIndex) {
+            const apiKey = apiKeys[keyIndex].key;
+            const voice = voiceSelector.value;
+            const narrationStyle = narrationStyleTextarea.value.trim();
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+            let promptText = textChunk;
+            if (narrationStyle) {
+                promptText = `Diga ${narrationStyle}: ${textChunk}`;
+            }
+
+            const payload = {
+                contents: [{ parts: [{ text: promptText }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                let errorMessage = `API retornou status ${response.status}`;
+                try {
+                    const errorBody = await response.json();
+                    // Extrai a mensagem de erro principal para ser mais fácil de ler
+                    if (errorBody.error?.message) {
+                         errorMessage = errorBody.error.message.split('.')[0];
+                    }
+                } catch (e) { /* Ignora erro de parsing se a resposta não for JSON */ }
+                throw new Error(errorMessage);
+            }
+            
+            const result = await response.json();
+            const audioData = result?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+
+            if (!audioData) {
+                throw new Error("Resposta da API não contém dados de áudio.");
+            }
+            
+            updateApiKeyStatus(keyIndex, 'ok');
+            return audioData;
+        }
+
+        function createDownloadLink(blob, fileName) {
+            outputSection.classList.remove('hidden');
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.className = "block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md text-center transition-colors";
+            a.textContent = `Baixar ${fileName}`;
+            outputLinksDiv.appendChild(a);
+
+            generatedFiles.push({ blob, fileName });
+            if(generatedFiles.length > 1) {
+                downloadAllButton.classList.remove('hidden');
+            }
+        }
+// ...
+        async function downloadAllFilesAsZip() {
+            if (generatedFiles.length === 0) return;
+            
+            updateStatus("Compactando arquivos...");
+            const zip = new JSZip();
+            generatedFiles.forEach(file => {
+                zip.file(file.fileName, file.blob);
+            });
+
+            const zipBlob = await zip.generateAsync({type:"blob"});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = 'WEBDARK_Audios_Gerados.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            updateStatus("Download do .zip iniciado!");
+        }
+
+
+        // --- Funções Utilitárias ---
+        
+        function chunkText(text, maxWords) {
+            const words = text.replace(/\s+/g, ' ').trim().split(' ');
+            const chunks = [];
+            let currentChunk = [];
+
+            for (const word of words) {
+                currentChunk.push(word);
+                if (currentChunk.length >= maxWords) {
+                    let chunkText = currentChunk.join(' ');
+                    const lastPeriod = chunkText.lastIndexOf('.');
+                    const lastComma = chunkText.lastIndexOf(',');
+                    const splitIndex = Math.max(lastPeriod, lastComma);
+
+                    if (splitIndex > chunkText.length / 2) { 
+                        chunks.push(chunkText.substring(0, splitIndex + 1));
+                        const remainingText = chunkText.substring(splitIndex + 1);
+                        currentChunk = remainingText.trim().split(' ').filter(w => w);
+                    } else {
+                        chunks.push(chunkText);
+                        currentChunk = [];
+                    }
+                }
+            }
+
+            if (currentChunk.length > 0) {
+                chunks.push(currentChunk.join(' '));
+            }
+
+            return chunks.filter(chunk => chunk.trim().length > 0);
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // --- Funções de Áudio (WAV) ---
+        
+        function createWavBlob(audioParts, sampleRate) {
+            const totalLength = audioParts.reduce((sum, part) => sum + part.length, 0);
+            const combined = new Int16Array(totalLength);
+            let offset = 0;
+            for(const part of audioParts) {
+                combined.set(part, offset);
+                offset += part.length;
+            }
+
+            const buffer = new ArrayBuffer(44 + combined.byteLength);
+            const view = new DataView(buffer);
+            
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const blockAlign = numChannels * bitsPerSample / 8;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = combined.byteLength;
+            
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+            
+            new Int16Array(buffer, 44).set(combined);
+            
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+        
+        // --- Inicia a aplicação ---
+        initialize();
+
+    </script>
+</body>
+</html>
